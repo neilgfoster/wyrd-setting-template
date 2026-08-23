@@ -1,0 +1,1 @@
+# wyrd-setting-template
