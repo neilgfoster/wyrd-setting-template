@@ -1,0 +1,27 @@
+# Wyrd setting: The One Ring — Wilderland
+name: template
+title: "Template"
+line: unknown
+requires_engine: ">=0.1.0"
+version: 0.0.1
+visibility: private # derives from copyrighted material
+description: >
+  A template setting for creating new worlds.
+
+tone: # the tone contract — see the engine's design/01-principles.md
+  prophecy: forbidden
+  victory: mitigation
+  power_curve: flat
+  scope: personal
+  scale_drift: suppressed
+  mortality: high
+  register: "TODO — one line naming the voice"
+
+# A setting may extend, retune, rename or disable what the engine provides.
+# It may NEVER add a mechanism the engine lacks — see the engine's
+# design/13-authoring-a-setting.md.
+overrides:
+  disable: []
+  rename: {}
+  tables: {}
+  extend: {}
