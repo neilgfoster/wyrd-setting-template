@@ -1,1 +1,14 @@
 .obsidian/workspace*
+__pycache__/
+.pytest_cache/
+
+# corpus/extract.sh scratch and logs (see corpus/README.md)
+corpus/work/
+corpus/progress.log
+corpus/failures.log
+
+# --- kord: GitHub Issue Tracking substrate ---
+.kord/
+.github/ISSUE_TEMPLATE/kord-epic.md
+.github/ISSUE_TEMPLATE/kord-feature.md
+# --- end kord: GitHub Issue Tracking substrate ---
