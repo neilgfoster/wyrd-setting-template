@@ -1,6 +1,6 @@
 # Corpus extraction
 
-Turns raw PDFs under `library/` into plain text, ready for `wyrd`'s
+Turns raw PDFs under `library/` into plain text under `corpus/`, ready for `wyrd`'s
 `tools/setting_pass0.py` and `tools/setting_build.py` to consume.
 
 ## Run it
@@ -14,11 +14,13 @@ From a fresh clone of a setting repo, this walks `library/`, and for every `*.pd
 1. extracts the text layer with `pdftotext` if one exists (probed by sampling a few pages);
    otherwise falls back to `tesseract` OCR over rendered page images
 2. strips OCR noise with `corpus/clean.py`
-3. writes the result to the same relative path with a `.txt` extension
-4. deletes the source PDF
+3. writes the result to `corpus/`, at the same relative path (with a `.txt` extension) that the
+   PDF has under `library/`
 
-Re-running is safe and cheap: a PDF whose `.txt` output already exists is skipped, so an
-interrupted run picks back up without redoing finished work.
+`library/` itself is never modified -- the source PDF stays exactly where it was.
+
+Re-running is safe and cheap: a PDF whose `corpus/`-mirrored `.txt` output already exists is
+skipped, so an interrupted run picks back up without redoing finished work.
 
 ### Requirements
 
@@ -28,30 +30,24 @@ by that constraint (see `neilgfoster/wyrd/CLAUDE.md`'s repository table and issu
 
 ## Where extracted text lands, and why
 
-**Each PDF is replaced in place**: `library/foo/bar.pdf` becomes `library/foo/bar.txt` at the
-same relative path, and the PDF is deleted once extraction succeeds. No parallel tree, no
-`library-text/` sibling directory.
+**`corpus/` mirrors `library/`'s own directory structure**: `library/foo/bar.pdf`'s extracted
+text lands at `corpus/foo/bar.txt`. The PDF is never deleted or moved -- `library/` is the
+setting's permanent source library, and `corpus/` is a derived, regenerable tree alongside it.
 
-This is a direct requirement of the two consumers this tool exists to feed:
+This mirrors `library/`'s own layout for the same reason the earlier "replace in place" design
+tried to satisfy: `tools/setting_pass0.py`'s catalogue step and `tools/setting_build.py`'s read
+step both need a plain-text tree they can walk, with no PDFs mixed in. Pointing them at
+`corpus/` instead of `library/` gets that without deleting anything (see
+`neilgfoster/wyrd#393`, the engine-side change that reads from `corpus/`).
 
-- `tools/setting_pass0.py`'s catalogue step walks `library_dir.rglob("*")` -- *every* file
-  under `library/`, with no extension filter -- and classifies each one by front matter/path
-  hints.
-- `tools/setting_build.py` reads every cataloged file as `library_dir / record.path`,
-  `.read_text(encoding="utf-8")` -- with no fallback path for binary content.
-
-A `library-text/` sibling tree would leave the PDFs themselves sitting under `library/`,
-where `setting_pass0.py` would still catalogue them and `setting_build.py` would still throw
-`UnicodeDecodeError` trying to read them as text. Replacing in place is the only option that
-requires zero changes to either consumer -- which matches this issue's own scope (no changes
-to `wyrd`'s tooling) and mirrors `wyrd-research/corpus/run.sh`'s own behaviour, the reference
-implementation this pipeline ports.
-
-The cost is that the original PDF bytes are gone once this runs. That is intentional and
-matches the reference implementation: a setting's PDFs are its own working library, not this
-repo's content, and are expected to be re-obtainable from wherever they were sourced (a
-personal copy, a remote store) if ever needed again. This repo (`wyrd-setting-template`) never
-holds or commits a real PDF or its extracted text -- see "Never commit real content" below.
+An earlier version of this pipeline deleted each PDF from `library/` once it was extracted,
+ported directly from `wyrd-research/corpus/run.sh`. That behaviour existed to bound disk usage
+during a *streaming remote-pull run*, where a PDF was fetched, extracted and discarded one at a
+time so an entire remote corpus never had to sit on disk at once -- a scratch-directory
+concern, not a repo-content policy. Once a PDF is already resident (and, in a private setting
+repo, committed), there is no disk-pressure reason to discard it, and deleting it destroyed
+data a re-run or an editorial re-extraction might need. `library/` is now never mutated by this
+script, in either sourcing mode.
 
 ## Sourcing modes
 
@@ -65,13 +61,17 @@ pass a list file of relative `library/` paths:
 corpus/extract.sh path/to/list.txt
 ```
 
-Each listed path is fetched on demand via `tools/pull.py` immediately before extraction, and
-the fetched PDF is deleted right after -- so disk usage stays bounded to one source PDF at a
-time regardless of corpus size, the same streaming property `wyrd-research/corpus/run.sh` had.
-`tools/pull.py` talks to Microsoft Graph through an rclone-managed OneDrive token; configure
-`PULL_RCLONE_REMOTE` and `PULL_RCLONE_ROOT` if your remote isn't named `onedrive` or isn't
-rooted where the defaults assume. If your library isn't OneDrive-backed, ignore `pull.py`
-entirely and use the default (no-list) mode once the PDFs are locally present.
+Each listed path is fetched on demand via `tools/pull.py` into a scratch copy under
+`corpus/work/`, extracted, and that scratch copy is deleted right after -- so disk usage stays
+bounded to one source PDF at a time regardless of corpus size, the same streaming property
+`wyrd-research/corpus/run.sh` had. This is unchanged by the PDF-deletion fix above: a PDF
+fetched this way was never written into `library/` in the first place, so there is nothing
+resident to preserve -- the fetch-and-discard behaviour is deliberate for a setting that keeps
+its library remote rather than checked in. `tools/pull.py` talks to Microsoft Graph through an
+rclone-managed OneDrive token; configure `PULL_RCLONE_REMOTE` and `PULL_RCLONE_ROOT` if your
+remote isn't named `onedrive` or isn't rooted where the defaults assume. If your library isn't
+OneDrive-backed, ignore `pull.py` entirely and use the default (no-list) mode once the PDFs are
+locally present.
 
 ## Never commit real content
 
