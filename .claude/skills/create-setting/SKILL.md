@@ -185,14 +185,11 @@ missing" is a valid Phase 2 outcome, not a failure.
 This is a genuine re-run against an already-complete setting. **Do not silently stop, and do not
 regenerate anything by default.** Ask the operator two questions:
 
-1. **Has new library material been added since the last run?** Compare `library/`'s and
-   `corpus/`'s file timestamps (or, more robustly, `index/corpus_build_cache.json`'s
-   `generated_at` -- the last recorded `setting_build.py` run) against the setting's own files
-   (`setting/`, `entities/`, `setting.yaml`). Only count source material -- `library/`'s PDFs and
-   `corpus/`'s extracted `.txt` -- newer than the last run; ignore incidental newer files like a
-   stray `corpus/__pycache__/*.pyc` from running `extract.sh`'s tooling, which is not new source
-   material. If genuine library/corpus material is newer, say so and ask whether to incorporate
-   it.
+1. **Has new library material been added since the last run?** Read Step 1's own
+   `setting_build.py . --format json` output -- its `processed` and `removed` list fields, computed
+   from Pass 0's content-hash idempotence check. If both are empty, nothing has genuinely changed;
+   say so, full stop. If either is non-empty, a source document was genuinely added, changed, or
+   removed -- report exactly what `processed`/`removed` name and ask whether to incorporate it.
 2. **Do they want to expand or add to any existing category beyond what's there today** -- more
    careers, another organisation, a second arc, and so on -- independent of new library material?
 
