@@ -25,6 +25,16 @@ it:
 > direction from Phase 1.** If neither source supports a detail you want to write, either leave
 > it out, mark it as an invented placeholder the operator should confirm, or (if permitted) go
 > get it from the web and say so.
+>
+> **The one narrow exception:** if Phase 1 Q3 was explicitly granted, original elaboration with
+> no basis in `corpus/`, the web, or the operator's stated direction may be invented, gated
+> instead on consistency with this setting's established tone, register, and existing facts --
+> re-read `voice.md` and the setting's existing `entities/`/`setting/` files before inventing
+> anything, and reject an invented detail that contradicts what's already established, the same
+> rigor Phase 4 applies to a failed grep on a web-sourced claim. This exception applies only when
+> Q3 was actually granted -- it is never assumed by default, and it does not loosen the rule
+> above for anyone who didn't grant it. Anything written under it is labelled distinctly (e.g.
+> "invented, per Phase 1 Q3"), never blended with library- or web-sourced claims.
 
 ---
 
@@ -91,9 +101,9 @@ simply have less grounding text to draw on and lean more on Phase 1's answers.
 Confirm before moving on: `ls corpus/**/*.txt` (or equivalent) shows extracted text, or you have
 explicitly noted there is none.
 
-## Phase 1 -- two orientation questions, asked before any content is written
+## Phase 1 -- three orientation questions, asked before any content is written
 
-Ask both, in this order, before generating anything:
+Ask all three, in this order, before generating anything:
 
 1. **"May I research the public web to supplement this setting's own library sources?"**
    Default to **no** if the operator does not answer. A yes here is an active instruction to go
@@ -121,8 +131,24 @@ Ask both, in this order, before generating anything:
    or a form. If the operator has nothing to add, say so and move on silently; do not press for
    an answer that isn't there.
 
-Record both answers (the web-research permission, and any stated direction) -- they govern every
-phase that follows.
+3. **"May I invent original material of my own -- names, minor characters, texture, incidental
+   world detail -- with no basis in the library, the web, or your own stated direction, as long
+   as it stays consistent with this setting's established tone and existing facts?"** Default to
+   **no** if the operator does not answer, same as Q1. This is a distinct, third kind of
+   permission -- not a variant of Q1 (real external material) or Q2 (the operator's own ideas) --
+   it is the skill's own creative judgment, gated only on consistency rather than on tracing to
+   any source. A yes grants the governing rule's narrow exception (stated at the top of this
+   file, and restated in Phase 3): invented content may be written, but only after re-reading
+   `voice.md` and the setting's existing `entities/`/`setting/` files, and only where it does not
+   contradict an established name, fact, or register choice. Every claim written under this
+   permission is labelled distinctly from library- and web-sourced claims (e.g. "invented, per
+   Phase 1 Q3") -- see Phase 3. Like Q1, a yes here matters on both a first run (Phase 3 may draw
+   on it while writing missing categories) and a re-run of an already-complete setting (Phase 2
+   Step 4 gives it its own explicit trigger, question 4, since nothing else on a re-run would
+   invoke it).
+
+Record all three answers (the web-research permission, any stated direction, and the
+original-invention permission) -- they govern every phase that follows.
 
 ## Phase 2 -- derive the step list from what's actually on disk
 
@@ -197,8 +223,8 @@ missing" is a valid Phase 2 outcome, not a failure.
 ### Step 4 -- if every required category already has a file
 
 This is a genuine re-run against an already-complete setting. **Do not silently stop, and do not
-regenerate anything by default.** Ask the operator three questions -- these are three separately
-actionable yeses, not one "anything to add?" catch-all, so ask all three even if an earlier one
+regenerate anything by default.** Ask the operator four questions -- these are four separately
+actionable yeses, not one "anything to add?" catch-all, so ask all four even if an earlier one
 was already answered yes:
 
 1. **Has new library material been added since the last run?** Read Step 1's own
@@ -222,17 +248,32 @@ was already answered yes:
    raising the possibility were the deliverable. If web-research permission was not granted
    (Phase 1 Q1 was no or unanswered), skip this question -- do not ask it, and do not perform web
    research anyway.
+4. **If Phase 1's original-invention question (Q3) was answered yes, actively propose original,
+   tone-consistent elaboration for this setting's existing categories.** This is not the same
+   question as #2 or #3 and is not answered by a "no" to either of them -- it is the downstream
+   effect of Phase 1 Q3's permission, and on a re-run it has no other trigger, so it must be
+   asked and acted on explicitly here, the same shape #11 established for question 3. Before
+   proposing anything, re-read `voice.md` and the setting's existing `entities/`/`setting/`
+   files. Propose **concrete invented additions** -- specific names, minor characters, texture,
+   incidental detail -- each checked against established tone and existing facts, for the
+   operator's approval before writing anything; do not just report "I could invent something" as
+   if raising the possibility were the deliverable. Reject any candidate that contradicts an
+   existing name, fact, or register choice. If this permission was not granted (Phase 1 Q3 was no
+   or unanswered), skip this question -- do not ask it, and do not invent original content
+   anyway.
 
 If any answer is yes, determine what to write from newly-extracted `corpus/` text (diffed against
-what the existing files already draw on, where feasible), the operator's stated direction, and/or
-the concrete web findings from question 3 -- never re-derive content for an already-existing file
-from `gap_report.json`'s binary signal, which cannot express "already covered, but incompletely."
-Every claim drawn from question 3's web research is labelled as web-sourced per Phase 1's rule,
-the same as any other web-sourced claim.
+what the existing files already draw on, where feasible), the operator's stated direction, the
+concrete web findings from question 3, and/or the concrete invented additions from question 4 --
+never re-derive content for an already-existing file from `gap_report.json`'s binary signal,
+which cannot express "already covered, but incompletely." Every claim drawn from question 3's web
+research is labelled as web-sourced per Phase 1's rule, the same as any other web-sourced claim;
+every addition drawn from question 4's invention permission is labelled distinctly (e.g.
+"invented, per Phase 1 Q3"), never blended with library- or web-sourced claims.
 
-If every answer is no (including question 3 being skipped because permission was never granted),
-**report the setting complete and stop.** This is a legitimate, expected outcome, not a failure to
-find something to do.
+If every answer is no (including question 3 and/or question 4 being skipped because their
+permissions were never granted), **report the setting complete and stop.** This is a legitimate,
+expected outcome, not a failure to find something to do.
 
 ## Phase 3 -- write each missing category, in dependency order
 
@@ -272,6 +313,16 @@ expansion questions is still bound by this rule, whether it comes from newly-ext
 text or the operator's fresh direction. Do not pad out a table with plausible-sounding invented
 names just to hit a round number. A shorter, grounded table beats a longer, fabricated one.
 
+**The one narrow exception** is Phase 1 Q3, when explicitly granted: original elaboration with no
+basis in `corpus/`, the web, or the operator's stated direction may be written, gated instead on
+consistency with this setting's established tone, register, and existing facts. It is never
+assumed by default -- only write under it when Q3 (or Step 4 question 4, on a re-run) was actually
+answered yes. Before writing anything under it, re-read `voice.md` and the setting's existing
+`entities/`/`setting/` files, and reject any candidate that contradicts an established name, fact,
+or register choice, with the same rigor Phase 4 applies when a web-sourced claim fails its grep
+check. Every claim written under this permission is labelled distinctly (e.g. "invented, per
+Phase 1 Q3") -- never blended with library- or web-sourced claims.
+
 Write prose fields as single-line quoted strings (gotcha 2, above) -- not `>` or `|` block
 scalars.
 
@@ -306,16 +357,20 @@ corpus does support.
 ## Summary checklist
 
 - [ ] Phase 0: `corpus/extract.sh` run, or its absence explicitly noted
-- [ ] Phase 1: both orientation questions asked and answers recorded, before any writing
+- [ ] Phase 1: all three orientation questions asked and answers recorded, before any writing
+      (web-research permission, operator direction, original-invention permission)
 - [ ] Phase 2: `setting_build.py` run; every category checked by file existence on disk
       (`setting/`, `entities/` by frontmatter `type:`, including organisations and Threat/arc);
       `gap_report.json` consulted only as a pre-flight check for categories still missing a file;
-      if everything already exists, all three re-run questions were asked (new material?, own
-      direction?, and -- if web research was permitted -- active web elaboration with concrete
-      findings offered) rather than silently stopping, regenerating, or treating "no" to the
-      direction question as covering the web-permission question too
+      if everything already exists, all four re-run questions were asked (new material?, own
+      direction?, -- if web research was permitted -- active web elaboration with concrete
+      findings offered, and -- if original invention was permitted -- concrete invented additions
+      proposed) rather than silently stopping, regenerating, or treating "no" to one question as
+      covering another
 - [ ] Phase 3: every category Phase 2 found missing (or that the operator asked to expand) is
       written, in dependency order, every specific claim traceable to `corpus/` or stated
-      operator direction (or, if permitted, labelled as web-sourced)
+      operator direction (or, if permitted, labelled as web-sourced, or, if permitted under the
+      narrow Q3 exception, labelled as invented and checked against `voice.md` and existing
+      facts)
 - [ ] Phase 4: every written file's validator run and clean; source claims spot-checked with a
       direct `corpus/` grep
