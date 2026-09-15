@@ -9,11 +9,13 @@ disable-model-invocation: false
 ## What this skill does
 
 Walks an operator (or an agent acting for one) through populating a `wyrd-setting-*` repository
-end to end: extraction, two orientation questions, a gap report the engine computes, writing each
-gap in dependency order, then validating what was written. It does not hard-code the list of
-files a setting needs -- it asks the engine for that list every time, because a hand-copied
-checklist and the engine's own requirements are exactly the kind of two-list drift this project's
-own CLAUDE.md warns about.
+end to end: extraction, two orientation questions, deriving what's still missing by checking
+`setting/` and `entities/` file existence directly, writing each missing category in dependency
+order, then validating what was written. It does not hard-code the list of files a setting needs
+-- it asks the engine's `docs/design/24-authoring-a-setting.md` for that list every time, because
+a hand-copied checklist and the engine's own requirements are exactly the kind of two-list drift
+this project's own CLAUDE.md warns about. It also knows how to re-run cleanly against a setting
+that's already fully populated, rather than mistaking "nothing changed" for "nothing done."
 
 This skill has one governing rule, stated once here so every phase below can just point back to
 it:
@@ -108,11 +110,20 @@ Ask both, in this order, before generating anything:
 Record both answers (the web-research permission, and any stated direction) -- they govern every
 phase that follows.
 
-## Phase 2 -- derive the step list from the engine's own gap report
+## Phase 2 -- derive the step list from what's actually on disk
+
+**Progress is what files exist, not what `gap_report.json` says.** `gap_report.json` (written by
+the engine's `tools/setting_pass0.py`, via `build_gap_report`) reports whether this setting's
+`library/` material *evidences* a requirement category -- it never looks at `setting/` or
+`entities/` at all, so it cannot tell "nothing written yet" from "fully written, library
+unchanged since." Read `index/gap_report.json` as a pre-flight check on the library, never as the
+list of what to write.
 
 You need a checkout of the `wyrd` engine repository. If its path wasn't given as this skill's
 argument, ask the operator where it is, or check the obvious sibling location
 (`../wyrd` relative to this setting repo).
+
+### Step 1 -- refresh the indexes
 
 Run, from the setting repo root:
 
@@ -121,31 +132,85 @@ python3 <engine-repo>/tools/setting_build.py . --format json
 ```
 
 This writes/refreshes `index/gap_report.json` (via Pass 0) and, where corpus text exists,
-`index/documents.json`, `index/nouns.json`, `index/terms.json`, `index/tables.json`. Read
-`index/gap_report.json` directly -- it lists, under a `gaps` key, exactly which of these
-requirement categories the library does not yet evidence coverage for:
+`index/documents.json`, `index/nouns.json`, `index/terms.json`, `index/tables.json`,
+`index/corpus_build_cache.json`.
 
-- `setting-identity` -- `setting.yaml`-shaped identity/tone coverage
-- `voice` -- `voice.md`-shaped register/tone guidance
-- `careers` -- `careers.yaml`-shaped career-graph coverage
-- `gear` -- `gear.yaml`-shaped weapons/armour coverage
-- `bestiary` -- `bestiary.yaml`-shaped adversary-block coverage
-- `names` -- `names.yaml`-shaped naming coverage
-- `calendar` -- `calendar.yaml`-shaped calendar coverage
-- `loyalties` -- `loyalties.yaml`-shaped Loyalty coverage
-- `drives` -- `drives.yaml`-shaped Drive coverage
-- `misfortunes` -- `misfortunes.yaml`-shaped Misfortune coverage
+### Step 2 -- check file existence directly for every category
 
-**Do not treat this list as fixed.** It is reproduced here only so you know what to expect the
-first time; the report you actually read may list more, fewer, or differently-named gaps if the
-engine's requirements have changed since this file was written, or if some of this setting's
-files already exist and satisfy a requirement. Walk what `gap_report.json` says today, not this
-list.
+Check each of these categories by whether its file already exists on disk. **Do not treat this
+list as fixed** -- it is reproduced so you know what to expect, but confirm against
+`docs/design/24-authoring-a-setting.md` in the engine repo if a setting has files this list
+doesn't name:
 
-## Phase 3 -- write each gap, in dependency order
+| Category | Check |
+|---|---|
+| `setting-identity` | `setting.yaml` exists |
+| `voice` | `setting/voice.md` exists |
+| `careers` | `setting/careers.yaml` exists |
+| `gear` | `setting/gear.yaml` exists |
+| `bestiary` | `setting/bestiary.yaml` exists |
+| `names` | `setting/names.yaml` exists |
+| `calendar` | `setting/calendar.yaml` exists |
+| `loyalties` | `setting/loyalties.yaml` exists |
+| `drives` | `setting/drives.yaml` exists |
+| `misfortunes` | `setting/misfortunes.yaml` exists |
+| `organisations` | at least one `entities/**/*.yaml` file with frontmatter `type: organisation` |
+| `threat-arc` | at least one `entities/**/*.yaml` with `type: arc` that has at least one `type: beat` file naming it as `parent` |
+
+The last two are never in Pass 0's `SETTING_REQUIREMENTS` -- they were never covered by the gap
+report even before this fix -- so they must be checked directly, always. **Check by frontmatter
+`type:` field, not by directory name.** A setting's `entities/` directory layout may predate the
+engine's current ten-type model (`character`, `place`, `organisation`, `arc`, `beat`, `creature`,
+`item`, `tracker`, `thread`, `lore` -- see `docs/design/25-entities.md`) -- an `organisation`
+entity may live under a legacy directory like `entities/faction/`, and an `arc` may live under
+`entities/scenario/` or similar. Grep frontmatter, don't assume the directory name:
+
+```bash
+grep -rl '^type: organisation$' entities/
+grep -rl '^type: arc$' entities/
+grep -rl '^type: beat$' entities/
+```
+
+### Step 3 -- for any category still missing a file, consult the gap report
+
+For each category from Step 2 with no file yet, check whether `index/gap_report.json`'s `gaps`
+list includes the matching requirement (`organisations` and `threat-arc` will never appear there
+-- Pass 0 doesn't track them, so for those two, judge grounding directly from `corpus/` instead).
+If the library doesn't evidence a category the operator still wants written, say so plainly
+rather than writing it ungrounded -- an explicit "the library doesn't support this; here's what's
+missing" is a valid Phase 2 outcome, not a failure.
+
+### Step 4 -- if every required category already has a file
+
+This is a genuine re-run against an already-complete setting. **Do not silently stop, and do not
+regenerate anything by default.** Ask the operator two questions:
+
+1. **Has new library material been added since the last run?** Compare `library/`'s and
+   `corpus/`'s file timestamps (or, more robustly, `index/corpus_build_cache.json`'s
+   `generated_at` -- the last recorded `setting_build.py` run) against the setting's own files
+   (`setting/`, `entities/`, `setting.yaml`). Only count source material -- `library/`'s PDFs and
+   `corpus/`'s extracted `.txt` -- newer than the last run; ignore incidental newer files like a
+   stray `corpus/__pycache__/*.pyc` from running `extract.sh`'s tooling, which is not new source
+   material. If genuine library/corpus material is newer, say so and ask whether to incorporate
+   it.
+2. **Do they want to expand or add to any existing category beyond what's there today** -- more
+   careers, another organisation, a second arc, and so on -- independent of new library material?
+
+If either answer is yes, determine what to write from newly-extracted `corpus/` text (diffed
+against what the existing files already draw on, where feasible) and/or the operator's stated
+direction -- never re-derive content for an already-existing file from `gap_report.json`'s binary
+signal, which cannot express "already covered, but incompletely."
+
+If both answers are no, **report the setting complete and stop.** This is a legitimate, expected
+outcome, not a failure to find something to do.
+
+## Phase 3 -- write each missing category, in dependency order
 
 Order matters because later files read the register and structures earlier ones establish. Use
-this order for whatever subset of gaps Phase 2 actually reported:
+this order for whatever subset of categories Phase 2 found missing -- on a first run that's
+likely everything; on a re-run of an already-complete setting (Phase 2 Step 4) it's only what the
+operator's answers actually call for, from newly-extracted material and/or their stated
+direction, never a wholesale rewrite of files that already exist:
 
 1. **`setting.yaml`** (identity, tone contract) and **`voice.md`** (register, vocabulary,
    institutions, what danger and failure sound like) -- everything else is written in this
@@ -160,15 +225,22 @@ this order for whatever subset of gaps Phase 2 actually reported:
 5. **`loyalties.yaml`**, **`drives.yaml`**, **`misfortunes.yaml`** -- character-creation data
    that benefits from the world and career graph already existing to draw specific, grounded
    options from, rather than generic ones.
-6. Anything else the gap report names beyond this list (e.g. a `deities.yaml`,
+6. **`entities/` organisations and Threat/arc** -- at least one `organisation` entity and at
+   least one `arc` entity with a supporting `beat` entity, in whatever directory this repo's
+   `entities/` convention actually uses (check the live layout, don't assume `entities/organisation/`
+   or `entities/arc/` -- see Phase 2 Step 2). Follow `docs/design/25-entities.md`'s frontmatter
+   shape and `docs/design/18-arcs-and-beats.md` for how an arc and its beats relate.
+7. Anything else Phase 2 found missing beyond this list (e.g. a `deities.yaml`,
    `conversion.yaml` for a derived setting, or an `ancestries.yaml`) -- write it following the
    shape `docs/design/24-authoring-a-setting.md` in the engine repo gives for that file.
 
 **For every specific claim -- a name, a quote, a statistic, a named faction, an NPC detail --
 ground it in this setting's actual `corpus/` text or the operator's Phase 1 direction.** This is
 the skill's one governing rule (stated at the top), repeated here because Phase 3 is where it is
-most tempting to break: do not pad out a table with plausible-sounding invented names just to
-hit a round number. A shorter, grounded table beats a longer, fabricated one.
+most tempting to break -- including on a re-run: content written to answer Phase 2 Step 4's
+expansion questions is still bound by this rule, whether it comes from newly-extracted `corpus/`
+text or the operator's fresh direction. Do not pad out a table with plausible-sounding invented
+names just to hit a round number. A shorter, grounded table beats a longer, fabricated one.
 
 Write prose fields as single-line quoted strings (gotcha 2, above) -- not `>` or `|` block
 scalars.
@@ -205,9 +277,13 @@ corpus does support.
 
 - [ ] Phase 0: `corpus/extract.sh` run, or its absence explicitly noted
 - [ ] Phase 1: both orientation questions asked and answers recorded, before any writing
-- [ ] Phase 2: `setting_build.py` run against this setting dir; `index/gap_report.json` read
-      directly, not assumed from memory
-- [ ] Phase 3: every gap written, in dependency order, every specific claim traceable to
-      `corpus/` or stated operator direction (or, if permitted, labelled as web-sourced)
+- [ ] Phase 2: `setting_build.py` run; every category checked by file existence on disk
+      (`setting/`, `entities/` by frontmatter `type:`, including organisations and Threat/arc);
+      `gap_report.json` consulted only as a pre-flight check for categories still missing a file;
+      if everything already exists, the two re-run/expansion questions were asked rather than
+      silently stopping or regenerating
+- [ ] Phase 3: every category Phase 2 found missing (or that the operator asked to expand) is
+      written, in dependency order, every specific claim traceable to `corpus/` or stated
+      operator direction (or, if permitted, labelled as web-sourced)
 - [ ] Phase 4: every written file's validator run and clean; source claims spot-checked with a
       direct `corpus/` grep
