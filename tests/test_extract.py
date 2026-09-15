@@ -24,8 +24,9 @@ def _run(*args, cwd):
     return subprocess.run(args, cwd=cwd, capture_output=True, text=True)
 
 
-def test_extract_replaces_pdf_with_text_in_place(tmp_path):
-    """A PDF under library/ becomes a .txt at the same relative path, and the PDF is gone."""
+def test_extract_writes_to_corpus_and_leaves_library_untouched(tmp_path):
+    """A PDF under library/ stays exactly where it is; the extracted text lands under corpus/
+    at the same relative path, with a .txt extension."""
     repo = tmp_path / "setting"
     shutil.copytree(REPO_ROOT / "corpus", repo / "corpus")
     shutil.copytree(REPO_ROOT / "tools", repo / "tools")
@@ -38,64 +39,71 @@ def test_extract_replaces_pdf_with_text_in_place(tmp_path):
             "It spans more than one line so the probe finds it.",
         ],
     )
+    pdf_bytes_before = pdf.read_bytes()
 
     result = _run("bash", str(repo / "corpus" / "extract.sh"), cwd=repo)
     assert result.returncode == 0, result.stderr
 
-    out = repo / "library" / "sourcebook.txt"
+    assert pdf.exists(), "source PDF must never be deleted"
+    assert pdf.read_bytes() == pdf_bytes_before, "source PDF must never be modified"
+
+    out = repo / "corpus" / "sourcebook.txt"
     assert out.exists(), result.stdout + result.stderr
-    assert not pdf.exists(), "source PDF should be deleted once extraction succeeds"
     text = out.read_text(encoding="utf-8")
     assert "real paragraph of extractable prose" in text
     assert "spans more than one line" in text
 
 
 def test_extract_is_resumable(tmp_path):
-    """A file whose .txt already exists is skipped -- re-running does not touch it."""
+    """A file whose corpus/-mirrored .txt already exists is skipped -- re-running does not
+    touch it, and does not touch the source PDF either."""
     repo = tmp_path / "setting"
     shutil.copytree(REPO_ROOT / "corpus", repo / "corpus")
     shutil.copytree(REPO_ROOT / "tools", repo / "tools")
     library = repo / "library"
     library.mkdir(parents=True)
 
-    already_done = library / "done.txt"
+    already_done = repo / "corpus" / "done.txt"
     already_done.write_text("already extracted, untouched\n", encoding="utf-8")
-    # A PDF sitting next to an already-produced .txt should be left alone (and not deleted --
-    # resumability must not destroy data on a re-run of a file it decides to skip).
+    # A PDF whose corpus/-mirrored .txt already exists should be left entirely alone.
     stray_pdf = library / "done.pdf"
     make_text_pdf(stray_pdf, ["should never be read"])
+    stray_pdf_bytes = stray_pdf.read_bytes()
 
     before = already_done.read_text(encoding="utf-8")
     result = _run("bash", str(repo / "corpus" / "extract.sh"), cwd=repo)
     assert result.returncode == 0, result.stderr
 
     assert already_done.read_text(encoding="utf-8") == before
-    # extract.sh keys resumability off <same-stem>.txt; done.pdf's sibling .txt already
-    # existed, so it must be skipped without deleting done.pdf.
+    # extract.sh keys resumability off corpus/<rel>.txt; done.pdf's mirrored .txt already
+    # existed, so it must be skipped without touching done.pdf.
     assert stray_pdf.exists()
+    assert stray_pdf.read_bytes() == stray_pdf_bytes
 
 
-def test_extract_produces_every_file_under_library_readable_as_utf8(tmp_path):
-    """Whatever extract.sh leaves under library/ must satisfy setting_build.py's read step:
-    library_dir.rglob("*") -> every file .read_text(encoding="utf-8") must not raise.
-    """
+def test_extract_mirrors_nested_directories_under_corpus(tmp_path):
+    """A PDF nested under library/ gets its extracted text at the same nested path under
+    corpus/, and the PDF stays exactly where it was under library/."""
     repo = tmp_path / "setting"
     shutil.copytree(REPO_ROOT / "corpus", repo / "corpus")
     shutil.copytree(REPO_ROOT / "tools", repo / "tools")
     library = repo / "library"
     (library / "sub").mkdir(parents=True)
+    pdf = library / "sub" / "book.pdf"
     make_text_pdf(
-        library / "sub" / "book.pdf",
+        pdf,
         ["Nested directory extraction also needs to work correctly here."],
     )
 
     result = _run("bash", str(repo / "corpus" / "extract.sh"), cwd=repo)
     assert result.returncode == 0, result.stderr
 
-    for f in library.rglob("*"):
-        if f.is_file():
-            f.read_text(encoding="utf-8")  # raises UnicodeDecodeError if this ever regresses
-    assert not any(library.rglob("*.pdf"))
+    assert pdf.exists(), "nested source PDF must never be deleted"
+    assert any(library.rglob("*.pdf")), "library/ must still contain its source PDFs"
+
+    out = repo / "corpus" / "sub" / "book.txt"
+    assert out.exists()
+    assert "Nested directory extraction" in out.read_text(encoding="utf-8")
 
 
 def test_extract_ocr_fallback_recovers_text(tmp_path):
@@ -121,7 +129,7 @@ def test_extract_ocr_fallback_recovers_text(tmp_path):
     )
     assert result.returncode == 0, result.stderr
 
-    out = repo / "library" / "scan.txt"
+    out = repo / "corpus" / "scan.txt"
     assert out.exists()
     text = out.read_text(encoding="utf-8")
     assert "recovered purely via OCR" in text

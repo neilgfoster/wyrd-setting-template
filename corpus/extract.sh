@@ -1,18 +1,25 @@
 #!/bin/bash
-# Turn every PDF under library/ into plain text at the same relative path, then delete the
-# PDF. Streaming: one PDF resident on disk at a time, so disk stays bounded regardless of
-# corpus size. Fully resumable -- a file whose .txt already exists (non-empty) is skipped, so
-# interrupting and re-running never redoes finished work.
+# Turn every PDF under library/ into plain text at the mirrored relative path under corpus/.
+# library/ is never mutated -- the source PDF stays exactly where it was, in every sourcing
+# mode. Streaming: one PDF resident on disk at a time, so disk stays bounded regardless of
+# corpus size. Fully resumable -- a file whose corpus/-mirrored .txt already exists (non-empty)
+# is skipped, so interrupting and re-running never redoes finished work.
 #
 # Adapted from wyrd-research/corpus/run.sh (that repo is retired; this is the reference
-# implementation this pipeline ports -- see corpus/README.md).
+# implementation this pipeline ports -- see corpus/README.md). That reference deleted the
+# source PDF once extracted, a scratch-directory disk-bounding trick for a streaming remote-pull
+# run; it does not apply once a PDF is resident/committed in a setting repo -- see
+# corpus/README.md's "Where extracted text lands, and why".
 #
 # Two sourcing modes:
 #   1. (default) Every PDF already sits on disk under library/. Just run this script.
 #   2. A remote-listed corpus not checked into git (e.g. OneDrive). Pass a LIST file: one
 #      relative library/ path per line, each fetched on demand via tools/pull.py before
 #      extraction, so no more than one source PDF is resident on disk at a time. See
-#      tools/pull.py's own header for the remote it expects to be configured against.
+#      tools/pull.py's own header for the remote it expects to be configured against. This mode
+#      never writes the fetched PDF into library/ at all -- it is a scratch copy in corpus/work/
+#      that is discarded after extraction, same as before; only extracting into corpus/ instead
+#      of deleting a resident library/ PDF is new.
 #
 # Usage:
 #   corpus/extract.sh                  # scan library/ for *.pdf already present
@@ -23,6 +30,7 @@ cd "$(dirname "$0")/.."          # repo root
 
 LIST=${1:-}
 LIBRARY=library
+CORPUS=corpus
 WORK=corpus/work
 WORKERS=${EXTRACT_WORKERS:-4}
 PROBE_THRESHOLD=${EXTRACT_PROBE_THRESHOLD:-800}
@@ -31,8 +39,8 @@ mkdir -p "$WORK"
 log() { echo "$1" >> corpus/progress.log; }
 fail() { echo "$1" >> corpus/failures.log; }
 
-# Extract text from one on-disk PDF at $pdf into plain text at $out (already-cleaned).
-# Deletes $pdf on success or genuine-empty-result; leaves it for a retry on a hard failure.
+# Extract text from one on-disk PDF at $pdf into plain text at $out (already-cleaned). Never
+# touches $pdf itself -- callers are responsible for whether/when their own copy is cleaned up.
 extract_one() {
   local pdf=$1 out=$2 rel=$3
   local pages
@@ -95,20 +103,16 @@ extract_one() {
 process_pdf() {
   local pdf=$1                         # absolute or repo-relative path to a resident PDF
   local rel=${pdf#"$LIBRARY"/}
-  local out="${pdf%.pdf}.txt"
+  local out="$CORPUS/${rel%.pdf}.txt"  # mirrored under corpus/, library/ untouched
   [ -s "$out" ] && return 0            # resumable: already extracted
 
   extract_one "$pdf" "$out" "$rel"
-  # Replace the PDF with its extracted text: matches wyrd-research/corpus/run.sh's own
-  # behaviour and is what tools/setting_pass0.py and tools/setting_build.py expect --
-  # every file under library/ must be UTF-8-readable text (see corpus/README.md).
-  [ -s "$out" ] && rm -f "$pdf"
 }
 
 if [ -n "$LIST" ]; then
   while IFS= read -r rel; do
     [ -z "$rel" ] && continue
-    out="$LIBRARY/${rel%.pdf}.txt"
+    out="$CORPUS/${rel%.pdf}.txt"
     [ -s "$out" ] && continue          # resumable, skip the fetch entirely
 
     pdf="$WORK/cur.pdf"
@@ -117,9 +121,8 @@ if [ -n "$LIST" ]; then
       fail "PULLFAIL $rel"
       continue
     fi
-    mkdir -p "$(dirname "$LIBRARY/$rel")"
     extract_one "$pdf" "$out" "$rel"
-    rm -f "$pdf"
+    rm -f "$pdf"                       # scratch copy in corpus/work/ only, not a library/ file
   done < "$LIST"
 else
   find "$LIBRARY" -name '*.pdf' -type f -print | sort | while IFS= read -r pdf; do
