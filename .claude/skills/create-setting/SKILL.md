@@ -96,11 +96,25 @@ explicitly noted there is none.
 Ask both, in this order, before generating anything:
 
 1. **"May I research the public web to supplement this setting's own library sources?"**
-   Default to **no** if the operator does not answer. If the answer is yes, every later phase's
-   output must say, for each specific claim, whether it came from the library (`corpus/`) or
-   from the web -- do not blend the two silently. If the answer is no (or unanswered), every
-   claim must trace to `corpus/` text or to the operator's own Phase 1 answer below; do not use
-   general world-building knowledge to fill a gap the sources don't cover.
+   Default to **no** if the operator does not answer. A yes here is an active instruction to go
+   use the web, not a dormant permission that only matters if something else happens to trigger
+   writing:
+   - **On a first run** (categories being written for the first time), Phase 3 is already going
+     to write every missing category regardless of this answer. A yes simply means that, while
+     writing those categories, web-sourced material may supplement `corpus/` wherever the
+     library falls short, with every such claim labelled as web-sourced -- see Phase 3. There is
+     nothing further to trigger here: the permission is exercised as part of the writing Phase 3
+     was always going to do.
+   - **On a re-run of an already-complete setting** (Phase 2 Step 4, where every required
+     category already has a file, so nothing else is about to trigger a writing pass), a yes is
+     its **own** trigger for action -- Step 4 gives it an explicit question and path, distinct
+     from "does the operator have their own direction." See Step 4, question 3, below.
+
+   Either way: every later phase's output must say, for each specific claim, whether it came from
+   the library (`corpus/`) or from the web -- do not blend the two silently. If the answer is no
+   (or unanswered), every claim must trace to `corpus/` text or to the operator's own Phase 1
+   answer below; do not use general world-building knowledge to fill a gap the sources don't
+   cover.
 
 2. **"Do you have any additional creative direction or changes you want included, beyond what
    the library material alone would produce?"** Open-ended -- do not present it as a checklist
@@ -183,7 +197,9 @@ missing" is a valid Phase 2 outcome, not a failure.
 ### Step 4 -- if every required category already has a file
 
 This is a genuine re-run against an already-complete setting. **Do not silently stop, and do not
-regenerate anything by default.** Ask the operator two questions:
+regenerate anything by default.** Ask the operator three questions -- these are three separately
+actionable yeses, not one "anything to add?" catch-all, so ask all three even if an earlier one
+was already answered yes:
 
 1. **Has new library material been added since the last run?** Read Step 1's own
    `setting_build.py . --format json` output -- its `processed` and `removed` list fields, computed
@@ -192,14 +208,31 @@ regenerate anything by default.** Ask the operator two questions:
    removed -- report exactly what `processed`/`removed` name and ask whether to incorporate it.
 2. **Do they want to expand or add to any existing category beyond what's there today** -- more
    careers, another organisation, a second arc, and so on -- independent of new library material?
+   This is the operator's own stated creative direction (Phase 1 Q2's channel): "I have my own
+   ideas."
+3. **If Phase 1's web-research question was answered yes, actively perform (or clearly propose)
+   web research for this setting's existing categories.** This is not the same question as #2 and
+   is not answered by a "no" to it -- it is the downstream effect of Phase 1 Q1's permission
+   ("go find things for me"), and on a re-run it has no other trigger, so it must be asked and
+   acted on explicitly here. Search for supplementary, tie-in, or texture-adding material for
+   categories that already exist: named lore connected to what's already written, related media
+   or source works, setting-specific facts the library doesn't cover. Bring back **concrete
+   findings** -- specific names, facts, or passages found, each with its source -- for the
+   operator's approval before writing anything; do not just report "I could search the web" as if
+   raising the possibility were the deliverable. If web-research permission was not granted
+   (Phase 1 Q1 was no or unanswered), skip this question -- do not ask it, and do not perform web
+   research anyway.
 
-If either answer is yes, determine what to write from newly-extracted `corpus/` text (diffed
-against what the existing files already draw on, where feasible) and/or the operator's stated
-direction -- never re-derive content for an already-existing file from `gap_report.json`'s binary
-signal, which cannot express "already covered, but incompletely."
+If any answer is yes, determine what to write from newly-extracted `corpus/` text (diffed against
+what the existing files already draw on, where feasible), the operator's stated direction, and/or
+the concrete web findings from question 3 -- never re-derive content for an already-existing file
+from `gap_report.json`'s binary signal, which cannot express "already covered, but incompletely."
+Every claim drawn from question 3's web research is labelled as web-sourced per Phase 1's rule,
+the same as any other web-sourced claim.
 
-If both answers are no, **report the setting complete and stop.** This is a legitimate, expected
-outcome, not a failure to find something to do.
+If every answer is no (including question 3 being skipped because permission was never granted),
+**report the setting complete and stop.** This is a legitimate, expected outcome, not a failure to
+find something to do.
 
 ## Phase 3 -- write each missing category, in dependency order
 
@@ -277,8 +310,10 @@ corpus does support.
 - [ ] Phase 2: `setting_build.py` run; every category checked by file existence on disk
       (`setting/`, `entities/` by frontmatter `type:`, including organisations and Threat/arc);
       `gap_report.json` consulted only as a pre-flight check for categories still missing a file;
-      if everything already exists, the two re-run/expansion questions were asked rather than
-      silently stopping or regenerating
+      if everything already exists, all three re-run questions were asked (new material?, own
+      direction?, and -- if web research was permitted -- active web elaboration with concrete
+      findings offered) rather than silently stopping, regenerating, or treating "no" to the
+      direction question as covering the web-permission question too
 - [ ] Phase 3: every category Phase 2 found missing (or that the operator asked to expand) is
       written, in dependency order, every specific claim traceable to `corpus/` or stated
       operator direction (or, if permitted, labelled as web-sourced)
