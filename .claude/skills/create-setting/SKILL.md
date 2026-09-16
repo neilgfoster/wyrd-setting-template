@@ -4,6 +4,7 @@ description: "Drive a freshly-cloned wyrd-setting-* repository from extracted li
 argument-hint: "[path to the wyrd engine repo checkout, if not alongside this repo]"
 user-invocable: true
 disable-model-invocation: false
+model: sonnet
 ---
 
 ## What this skill does
@@ -31,10 +32,24 @@ it:
 > instead on consistency with this setting's established tone, register, and existing facts --
 > re-read `voice.md` and the setting's existing `entities/`/`setting/` files before inventing
 > anything, and reject an invented detail that contradicts what's already established, the same
-> rigor Phase 4 applies to a failed grep on a web-sourced claim. This exception applies only when
+> rigor Phase 4 applies to a web-sourced claim that fails its corpus-fact-finder spot-check. This exception applies only when
 > Q3 was actually granted -- it is never assumed by default, and it does not loosen the rule
 > above for anyone who didn't grant it. Anything written under it is labelled distinctly (e.g.
 > "invented, per Phase 1 Q3"), never blended with library- or web-sourced claims.
+
+**A second thing stated once here, for the same reason:** this skill itself runs on the capable
+(Sonnet) tier -- see its frontmatter -- but not every step in it needs that tier. Locating a
+specific quote or fact in `corpus/` to check whether it supports a claim has a checkable right
+answer (the text either says it or it doesn't); writing `voice.md`'s register, composing
+career/gear/bestiary/entity content, and deciding what belongs or how to hedge on a thin source do
+not. `docs/design/27-tooling.md` section 5 in the engine repo calls the first kind "mechanical
+language work with a right answer" (Haiku-tier) and keeps the second kind ("judgement about what a
+result means") on the capable model. Phases 3 and 4 below act on that split: every corpus
+fact-grounding or verification lookup is delegated to the `corpus-fact-finder` subagent
+(`.claude/agents/corpus-fact-finder.md`, `model: haiku`) rather than read or searched inline; every
+actual writing and register/content-judgement decision stays here, on this skill's own Sonnet-tier
+invocation. If you find yourself reading `corpus/` text directly to decide whether a claim holds,
+stop -- that lookup belongs to the subagent.
 
 ---
 
@@ -313,14 +328,34 @@ expansion questions is still bound by this rule, whether it comes from newly-ext
 text or the operator's fresh direction. Do not pad out a table with plausible-sounding invented
 names just to hit a round number. A shorter, grounded table beats a longer, fabricated one.
 
+**Do the grounding lookup itself by invoking the `corpus-fact-finder` subagent, not by reading or
+grepping `corpus/` yourself.** Before writing a specific claim, state the claim plainly and hand
+it to the subagent along with the relevant `corpus/` location (a whole-setting search when you
+don't yet know where to look, a narrower file/directory once you do); it reports back one of three
+outcomes -- supported (with the exact quote and its source location), contradicted (with the
+exact contradicting quote and location), or not found. Write from what it reports:
+
+- **Supported** -- write the claim, and keep the subagent's quote/location on hand for Phase 4's
+  spot-check.
+- **Contradicted** -- do not write the original claim; either drop it, or write what the corpus
+  actually says instead.
+- **Not found** -- the claim has no library grounding. Leave it out, mark it as an invented
+  placeholder for the operator to confirm, or (if Phase 1 Q1 was granted) go get it from the web
+  and label it as such -- the same choices the governing rule already offers, just reached via the
+  subagent's report instead of your own reading.
+
+This is a mechanical retrieval step, not a judgement call -- see the frontmatter note near the top
+of this file for why it is delegated. What to do with the result (write it, soften it, drop it,
+label it) is still this skill's own decision, made here in Phase 3, not the subagent's.
+
 **The one narrow exception** is Phase 1 Q3, when explicitly granted: original elaboration with no
 basis in `corpus/`, the web, or the operator's stated direction may be written, gated instead on
 consistency with this setting's established tone, register, and existing facts. It is never
 assumed by default -- only write under it when Q3 (or Step 4 question 4, on a re-run) was actually
 answered yes. Before writing anything under it, re-read `voice.md` and the setting's existing
 `entities/`/`setting/` files, and reject any candidate that contradicts an established name, fact,
-or register choice, with the same rigor Phase 4 applies when a web-sourced claim fails its grep
-check. Every claim written under this permission is labelled distinctly (e.g. "invented, per
+or register choice, with the same rigor Phase 4 applies when a web-sourced claim fails its
+corpus-fact-finder spot-check. Every claim written under this permission is labelled distinctly (e.g. "invented, per
 Phase 1 Q3") -- never blended with library- or web-sourced claims.
 
 Write prose fields as single-line quoted strings (gotcha 2, above) -- not `>` or `|` block
@@ -342,17 +377,16 @@ Fix every reported failure before moving on -- each validator reports every prob
 just the first, so address the whole list in one pass rather than one failure at a time.
 
 **Separately, for any named entity, quote, or statistic you claimed came from the source
-material**, spot-check it with a direct grep against `corpus/` before treating it as final:
-
-```bash
-grep -rn "the exact name or phrase" corpus/
-```
+material**, spot-check it before treating it as final -- by invoking the `corpus-fact-finder`
+subagent again, the same way Phase 3 did, with the exact claim as written and `corpus/` as the
+location to search. This is the same mechanical retrieval call, run a second time as a check
+rather than a first-draft lookup; do not grep `corpus/` yourself inline.
 
 Do not trust your own earlier claim that something came from the library -- verify it landed
-there, the same discipline this skill asked of Phase 3's writing. If a grep turns up nothing,
-either the claim is actually from the web (and must be labelled as such per Phase 1) or it was
-invented and must be removed, softened to an explicit placeholder, or replaced with something the
-corpus does support.
+there, the same discipline this skill asked of Phase 3's writing. If the subagent reports
+not-found (or contradicted), either the claim is actually from the web (and must be labelled as
+such per Phase 1) or it was invented and must be removed, softened to an explicit placeholder, or
+replaced with something the corpus does support.
 
 ## Summary checklist
 
@@ -368,9 +402,10 @@ corpus does support.
       proposed) rather than silently stopping, regenerating, or treating "no" to one question as
       covering another
 - [ ] Phase 3: every category Phase 2 found missing (or that the operator asked to expand) is
-      written, in dependency order, every specific claim traceable to `corpus/` or stated
+      written, in dependency order, every specific claim's corpus grounding looked up via the
+      `corpus-fact-finder` subagent rather than read inline, and traceable to `corpus/` or stated
       operator direction (or, if permitted, labelled as web-sourced, or, if permitted under the
       narrow Q3 exception, labelled as invented and checked against `voice.md` and existing
       facts)
-- [ ] Phase 4: every written file's validator run and clean; source claims spot-checked with a
-      direct `corpus/` grep
+- [ ] Phase 4: every written file's validator run and clean; source claims spot-checked via the
+      `corpus-fact-finder` subagent, not a direct inline grep
